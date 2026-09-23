@@ -40,7 +40,7 @@ import org.geysermc.geyser.item.Items;
 import org.geysermc.geyser.item.type.Item;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 @EqualsAndHashCode
 @ToString
 public class ItemMapping {

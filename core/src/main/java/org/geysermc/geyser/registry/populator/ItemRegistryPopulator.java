@@ -615,46 +615,74 @@ public class ItemRegistryPopulator {
 
             final IntSet nonVanillaCustomItemIds = new IntOpenHashSet();
 
-            // Register any completely custom items given to us
-            IntSet registeredJavaIds = new IntOpenHashSet(); // Used to check for duplicate item java ids
-            for (NonVanillaCustomItemDefinition customItem : nonVanillaCustomItems.values()) {
-                if (!registeredJavaIds.add(customItem.javaId())) {
-                    // This should never happen since we validate for this in the CustomItemRegistryPopulator
-                    throw new IllegalStateException("Custom item java id " + customItem.javaId() + " already exists and was registered again!");
+            // Register any completely custom items given to us. A Java item may have several
+            // definitions, matched on their predicates the way a vanilla item's are, so that a
+            // modded item can look different depending on its state. Each one becomes its own
+            // Bedrock item; the mapping the Java item resolves to carries the rest, and
+            // CustomItemTranslator picks between them.
+            for (Map.Entry<Identifier, Collection<NonVanillaCustomItemDefinition>> entry : nonVanillaCustomItems.asMap().entrySet()) {
+                Collection<NonVanillaCustomItemDefinition> itemDefinitions = entry.getValue();
+
+                SortedSetMultimap<Key, GeyserCustomMappingData> customItemDefinitions =
+                    MultimapBuilder.hashKeys(1).treeSetValues(new CustomItemDefinitionComparator()).build();
+
+                ItemMapping baseMapping = null;
+                Item baseJavaItem = null;
+
+                for (NonVanillaCustomItemDefinition customItem : itemDefinitions) {
+                    int customItemId = nextFreeBedrockId++;
+                    try {
+                        NonVanillaItemRegistration registration = CustomItemRegistryPopulator.registerCustomItem(customItem, customItemId, palette.protocolVersion, firstMappingsPass);
+
+                        ItemMapping mapping = registration.mapping();
+                        registry.put(customItemId, mapping.getBedrockDefinition());
+
+                        // The definition without predicates is the one the item falls back to, so
+                        // it is the mapping the Java item resolves to. Definitions are sorted so
+                        // that it is matched last.
+                        if (customItem.predicates().isEmpty() || baseMapping == null) {
+                            baseMapping = mapping;
+                            baseJavaItem = registration.javaItem();
+                        }
+
+                        customItemDefinitions.put(
+                            MinecraftKey.identifierToKey(customItem.identifier()),
+                            new GeyserCustomMappingData(customItem, mapping.getBedrockDefinition(), customItemId)
+                        );
+
+                        if (customItem.bedrockOptions().creativeCategory() != CreativeCategory.NONE) {
+                            CreativeItemData creativeItemData = new CreativeItemData(ItemData.builder()
+                                .definition(mapping.getBedrockDefinition())
+                                .netId(creativeNetId.incrementAndGet())
+                                .count(1)
+                                .build(), creativeNetId.get(),
+                                getCreativeIndex(customItem.bedrockOptions().creativeGroup(),
+                                    CreativeItemCategory.values()[customItem.bedrockOptions().creativeCategory().id()],
+                                    creativeGroupIds,lastCreativeGroupIds,
+                                    creativeItemGroups)
+                        );
+
+                            creativeItems.add(creativeItemData);
+                        }
+                    } catch (InvalidItemComponentsException exception) {
+                        GeyserImpl.getInstance().getLogger().error("Not registering non-vanilla custom item (identifier=" + customItem.identifier() + ")!", exception);
+                    }
                 }
 
-                int customItemId = nextFreeBedrockId++;
-                try {
-                    NonVanillaItemRegistration registration = CustomItemRegistryPopulator.registerCustomItem(customItem, customItemId, palette.protocolVersion, firstMappingsPass);
-
-                    ItemMapping mapping = registration.mapping();
-                    Item javaItem = registration.javaItem();
-                    while (javaItem.javaId() >= mappings.size()) {
-                        // Fill with empty to get to the correct size
-                        mappings.add(ItemMapping.AIR);
-                    }
-                    mappings.set(javaItem.javaId(), mapping);
-                    registry.put(customItemId, mapping.getBedrockDefinition());
-
-                    nonVanillaCustomItemIds.add(javaItem.javaId());
-
-                    if (customItem.bedrockOptions().creativeCategory() != CreativeCategory.NONE) {
-                        CreativeItemData creativeItemData = new CreativeItemData(ItemData.builder()
-                            .definition(registration.mapping().getBedrockDefinition())
-                            .netId(creativeNetId.incrementAndGet())
-                            .count(1)
-                            .build(), creativeNetId.get(),
-                            getCreativeIndex(customItem.bedrockOptions().creativeGroup(),
-                                CreativeItemCategory.values()[customItem.bedrockOptions().creativeCategory().id()],
-                                creativeGroupIds,lastCreativeGroupIds,
-                                creativeItemGroups)
-                    );
-
-                        creativeItems.add(creativeItemData);
-                    }
-                } catch (InvalidItemComponentsException exception) {
-                    GeyserImpl.getInstance().getLogger().error("Not registering non-vanilla custom item (identifier=" + customItem.identifier() + ")!", exception);
+                if (baseMapping == null) {
+                    // Every definition for this item failed to register
+                    continue;
                 }
+
+                while (baseJavaItem.javaId() >= mappings.size()) {
+                    // Fill with empty to get to the correct size
+                    mappings.add(ItemMapping.AIR);
+                }
+                mappings.set(baseJavaItem.javaId(), baseMapping.toBuilder()
+                    .customItemDefinitions(customItemDefinitions)
+                    .build());
+
+                nonVanillaCustomItemIds.add(baseJavaItem.javaId());
             }
 
             Set<CustomBlockData> skullBlocks = new ObjectOpenHashSet<>();

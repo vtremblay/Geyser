@@ -34,14 +34,17 @@ import org.cloudburstmc.protocol.bedrock.data.definitions.ItemDefinition;
 import org.geysermc.geyser.api.predicate.MinecraftPredicate;
 import org.geysermc.geyser.api.predicate.PredicateStrategy;
 import org.geysermc.geyser.api.predicate.context.item.ItemPredicateContext;
+import org.geysermc.geyser.api.util.Identifier;
 import org.geysermc.geyser.item.GeyserCustomMappingData;
 import org.geysermc.geyser.item.custom.GeyserItemPredicateContext;
 import org.geysermc.geyser.registry.type.ItemMapping;
+import org.geysermc.geyser.util.MinecraftKey;
 import org.geysermc.geyser.session.GeyserSession;
 import org.geysermc.mcprotocollib.protocol.data.game.item.component.DataComponentTypes;
 import org.geysermc.mcprotocollib.protocol.data.game.item.component.DataComponents;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * This is only a separate class for testing purposes so we don't have to load in GeyserImpl in ItemTranslator.
@@ -68,10 +71,16 @@ public final class CustomItemTranslator {
         }
 
         Key itemModel = components.get(DataComponentTypes.ITEM_MODEL);
-        if (itemModel == null) {
-            return null;
+
+        Collection<GeyserCustomMappingData> customItems = itemModel == null
+            ? List.of()
+            : allCustomItems.get(itemModel);
+
+        if (customItems.isEmpty()) {
+            // A non-vanilla item is not reached through a model, since a modded item has no
+            // vanilla model to point at. Its definitions are keyed by the item itself.
+            customItems = allCustomItems.get(MinecraftKey.identifierToKey(Identifier.of(mapping.getJavaItem().javaIdentifier())));
         }
-        Collection<GeyserCustomMappingData> customItems = allCustomItems.get(itemModel);
 
         if (mapping.isContainsV1Mappings() && customItems.isEmpty()) {
             // Try looking up vanilla model mappings too, as that's what v1 mappings target
