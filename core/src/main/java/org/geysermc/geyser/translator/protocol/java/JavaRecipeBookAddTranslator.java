@@ -165,11 +165,21 @@ public class JavaRecipeBookAddTranslator extends PacketTranslator<ClientboundRec
             }
         }
 
+        // A smithing recipe adds nothing to the unlocked list: Bedrock does not show these in
+        // the recipe book. So the crafting data has to be sent on its own terms -- gating it on
+        // the unlocked list meant a batch carrying only smithing recipes was built and then
+        // dropped unsent.
+        if (!craftingDataPacket.getCraftingData().isEmpty()
+                || !craftingDataPacket.getShapedData().isEmpty()
+                || !craftingDataPacket.getShapelessData().isEmpty()
+                || !craftingDataPacket.getSmithingTransformData().isEmpty()) {
+            session.sendUpstreamPacket(craftingDataPacket);
+        }
+
         if (!recipesPacket.getUnlockedRecipes().isEmpty()) {
             // Sending an empty list here will crash the client as of 1.20.60
             // This was definitely in the codebase the entire time and did not
             // accidentally get refactored out during Java 1.21.3. :)
-            session.sendUpstreamPacket(craftingDataPacket);
             session.sendUpstreamPacket(recipesPacket);
         }
         session.getLastRecipeNetId().set(netId);
