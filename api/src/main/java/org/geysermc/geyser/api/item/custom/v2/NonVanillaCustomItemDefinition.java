@@ -31,21 +31,18 @@ import org.geysermc.geyser.api.GeyserApi;
 import org.geysermc.geyser.api.item.custom.v2.component.geyser.GeyserItemDataComponents;
 import org.geysermc.geyser.api.item.custom.v2.component.ItemDataComponent;
 import org.geysermc.geyser.api.item.custom.v2.component.ItemDataComponentMap;
-import org.geysermc.geyser.api.predicate.MinecraftPredicate;
-import org.geysermc.geyser.api.predicate.PredicateStrategy;
-import org.geysermc.geyser.api.predicate.context.item.ItemPredicateContext;
 import org.geysermc.geyser.api.util.Identifier;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
-import java.util.List;
 
 /**
  * Defines a custom item introduced by mods and therefore not based on a vanilla item and its properties.
  *
- * <p>A definition will be used when an item is received with the ID of the definition. Predicate matching, as is possible
- * right now with vanilla custom item definitions, is currently not implemented, so only one definition can be created for each
- * Java non-vanilla item.</p>
+ * <p>A definition will be used when an item is received with the ID of the definition. Several definitions can be created
+ * for one Java non-vanilla item, and are matched on their predicates the same way vanilla custom item definitions are, so
+ * that an item can look different depending on its state. A definition without predicates matches any state, and is used
+ * when no other definition matches.</p>
  *
  * <p>Non-vanilla item definitions can be configured with additional components defined in {@link GeyserItemDataComponents}.</p>
  * @since 2.9.3
@@ -79,44 +76,8 @@ public interface NonVanillaCustomItemDefinition extends CustomItemDefinition {
      */
     @Nullable String translationString();
 
-    /**
-     * Predicates are currently not supported for use with non-vanilla custom item definitions.
-     *
-     * <p>Trying to use predicates will result in an error.</p>
-     *
-     * @throws UnsupportedOperationException always, since predicate usage is not supported
-     * @since 2.9.3
-     */
-    @Override
-    default List<MinecraftPredicate<? super ItemPredicateContext>> predicates() {
-        throw new UnsupportedOperationException("Predicates are currently not supported for use with non-vanilla custom item definitions");
-    }
 
-    /**
-     * Predicates are currently not supported for use with non-vanilla custom item definitions.
-     *
-     * <p>Trying to use predicates will result in an error.</p>
-     *
-     * @throws UnsupportedOperationException always, since predicate usage is not supported
-     * @since 2.9.3
-     */
-    @Override
-    default PredicateStrategy predicateStrategy() {
-        throw new UnsupportedOperationException("Predicates are currently not supported for use with non-vanilla custom item definitions");
-    }
 
-    /**
-     * Predicates are currently not supported for use with non-vanilla custom item definitions.
-     *
-     * <p>Trying to use predicates will result in an error.</p>
-     *
-     * @throws UnsupportedOperationException always, since predicate usage is not supported
-     * @since 2.9.3
-     */
-    @Override
-    default int priority() {
-        throw new UnsupportedOperationException("Predicates are currently not supported for use with non-vanilla custom item definitions");
-    }
 
     /**
      * On top of vanilla Minecraft's item components, custom ones defined by Geyser in {@link GeyserItemDataComponents} can

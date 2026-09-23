@@ -88,7 +88,7 @@ public class GeyserNonVanillaCustomItemDefinition extends GeyserCustomItemDefini
 
         @Override
         public NonVanillaCustomItemDefinition.Builder priority(int priority) {
-            throw new IllegalArgumentException("Predicates are not supported for non-vanilla custom item definitions");
+            return (Builder) super.priority(priority);
         }
 
         @Override
@@ -98,12 +98,12 @@ public class GeyserNonVanillaCustomItemDefinition extends GeyserCustomItemDefini
 
         @Override
         public CustomItemDefinition.Builder predicate(@NonNull MinecraftPredicate<? super ItemPredicateContext> predicate) {
-            throw new IllegalArgumentException("Predicates are not supported for non-vanilla custom item definitions");
+            return super.predicate(predicate);
         }
 
         @Override
         public CustomItemDefinition.Builder predicateStrategy(@NonNull PredicateStrategy strategy) {
-            throw new IllegalArgumentException("Predicates are not supported for non-vanilla custom item definitions");
+            return super.predicateStrategy(strategy);
         }
 
         @Override
