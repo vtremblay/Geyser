@@ -62,6 +62,7 @@ import org.geysermc.geyser.registry.mappings.BuiltInMappings;
 import org.geysermc.geyser.registry.mappings.MappingsConfigReader;
 import org.geysermc.geyser.registry.mappings.MappingsType;
 import org.geysermc.geyser.registry.populator.custom.CustomItemContext;
+import org.geysermc.geyser.registry.Registries;
 import org.geysermc.geyser.registry.type.GeyserMappingItem;
 import org.geysermc.geyser.registry.type.ItemMapping;
 import org.geysermc.geyser.registry.type.NonVanillaItemRegistration;
@@ -145,10 +146,29 @@ public class CustomItemRegistryPopulator {
                     throw new CustomItemDefinitionRegisterException("Non-vanilla custom item definition (identifier=" + definition.identifier() + ") is attempting to overwrite a vanilla Minecraft item! (item network ID taken)");
                 }
 
-                for (NonVanillaCustomItemDefinition existing : nonVanillaCustomItems.values()) {
-                    if (existing.identifier().equals(definition.identifier()) || existing.javaId() == definition.javaId()) {
-                        // Until predicates are a thing, then predicate conflict detection should be used like with vanilla items
-                        throw new CustomItemDefinitionRegisterException("A non-vanilla custom item definition (identifier=" + definition.identifier() + ", network ID=" + definition.javaId() + ") is already registered!");
+                for (Map.Entry<Identifier, NonVanillaCustomItemDefinition> entry : nonVanillaCustomItems.entries()) {
+                    NonVanillaCustomItemDefinition existing = entry.getValue();
+
+                    // A Java item may have several definitions, told apart by their predicates,
+                    // but two of them still cannot become the same Bedrock item.
+                    if (existing.bedrockIdentifier().equals(definition.bedrockIdentifier())) {
+                        throw new CustomItemDefinitionRegisterException("A non-vanilla custom item definition (identifier=" + definition.identifier()
+                            + ") conflicts with another definition with the same bedrock identifier!");
+                    }
+
+                    // An identifier and a network ID both name the same Java item, so they have
+                    // to agree: sharing one without the other means two different items claiming
+                    // the same name, or one item under two names.
+                    if (existing.identifier().equals(definition.identifier()) != (existing.javaId() == definition.javaId())) {
+                        throw new CustomItemDefinitionRegisterException("A non-vanilla custom item definition (identifier=" + definition.identifier()
+                            + ", network ID=" + definition.javaId() + ") disagrees with an existing definition over which Java item it is!");
+                    }
+
+                    try {
+                        checkPredicate(Map.entry(entry.getKey(), (CustomItemDefinition) existing), definition.identifier(), definition);
+                    } catch (CustomItemDefinitionRegisterException exception) {
+                        throw new CustomItemDefinitionRegisterException("A non-vanilla custom item definition (identifier=" + definition.identifier()
+                            + ") conflicts with custom item definition (bedrock identifier=" + existing.bedrockIdentifier() + "): " + exception.getMessage());
                     }
                 }
                 nonVanillaCustomItems.put(definition.identifier(), definition);
@@ -180,7 +200,18 @@ public class CustomItemRegistryPopulator {
         Item javaItem = new Item(customItem.identifier().toString(), Item.builder()
             .components(context.components())
             .resolvableComponents(context.resolvableComponents()));
-        Items.register(javaItem, customItem.javaId());
+
+        // However many Bedrock definitions a modded item has, it is one Java item. Register it
+        // from the definition it falls back to -- the one without predicates -- so the item
+        // carries its own components rather than those of whichever variant was seen last.
+        // The null check registers the first definition seen regardless, so an item whose
+        // definitions all carry predicates still gets registered.
+        Item registered = Registries.JAVA_ITEM_IDENTIFIERS.get(customItem.identifier().toString());
+        if (customItem.predicates().isEmpty() || registered == null) {
+            Items.register(javaItem, customItem.javaId());
+        } else {
+            javaItem = registered;
+        }
 
         ItemMapping customMapping = ItemMapping.builder()
             .bedrockIdentifier(bedrockIdentifier)

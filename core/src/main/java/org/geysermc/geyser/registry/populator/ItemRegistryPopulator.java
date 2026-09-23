@@ -628,6 +628,7 @@ public class ItemRegistryPopulator {
 
                 ItemMapping baseMapping = null;
                 Item baseJavaItem = null;
+                NonVanillaCustomItemDefinition baseDefinition = null;
 
                 for (NonVanillaCustomItemDefinition customItem : itemDefinitions) {
                     int customItemId = nextFreeBedrockId++;
@@ -643,27 +644,13 @@ public class ItemRegistryPopulator {
                         if (customItem.predicates().isEmpty() || baseMapping == null) {
                             baseMapping = mapping;
                             baseJavaItem = registration.javaItem();
+                            baseDefinition = customItem;
                         }
 
                         customItemDefinitions.put(
                             MinecraftKey.identifierToKey(customItem.identifier()),
                             new GeyserCustomMappingData(customItem, mapping.getBedrockDefinition(), customItemId)
                         );
-
-                        if (customItem.bedrockOptions().creativeCategory() != CreativeCategory.NONE) {
-                            CreativeItemData creativeItemData = new CreativeItemData(ItemData.builder()
-                                .definition(mapping.getBedrockDefinition())
-                                .netId(creativeNetId.incrementAndGet())
-                                .count(1)
-                                .build(), creativeNetId.get(),
-                                getCreativeIndex(customItem.bedrockOptions().creativeGroup(),
-                                    CreativeItemCategory.values()[customItem.bedrockOptions().creativeCategory().id()],
-                                    creativeGroupIds,lastCreativeGroupIds,
-                                    creativeItemGroups)
-                        );
-
-                            creativeItems.add(creativeItemData);
-                        }
                     } catch (InvalidItemComponentsException exception) {
                         GeyserImpl.getInstance().getLogger().error("Not registering non-vanilla custom item (identifier=" + customItem.identifier() + ")!", exception);
                     }
@@ -683,6 +670,26 @@ public class ItemRegistryPopulator {
                     .build());
 
                 nonVanillaCustomItemIds.add(baseJavaItem.javaId());
+
+                // Only the definition the Java item resolves to belongs in the creative menu.
+                // A definition matched on predicates has a Bedrock id that is no mapping's
+                // bedrockDefinition, so getMapping(ItemData) cannot resolve it and a creative
+                // click yields air -- the same reason #4484 notes these "ideally wouldn't be
+                // included there at all". With one definition this is the behaviour of old.
+                if (baseDefinition.bedrockOptions().creativeCategory() != CreativeCategory.NONE) {
+                    CreativeItemData creativeItemData = new CreativeItemData(ItemData.builder()
+                        .definition(baseMapping.getBedrockDefinition())
+                        .netId(creativeNetId.incrementAndGet())
+                        .count(1)
+                        .build(), creativeNetId.get(),
+                        getCreativeIndex(baseDefinition.bedrockOptions().creativeGroup(),
+                            CreativeItemCategory.values()[baseDefinition.bedrockOptions().creativeCategory().id()],
+                            creativeGroupIds,lastCreativeGroupIds,
+                            creativeItemGroups)
+                    );
+
+                    creativeItems.add(creativeItemData);
+                }
             }
 
             Set<CustomBlockData> skullBlocks = new ObjectOpenHashSet<>();
